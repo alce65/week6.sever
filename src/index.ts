@@ -13,11 +13,15 @@ const server = http.createServer((request, response) => {
     console.log(parse);
     console.log(method);
 
-    switch (method) {
+    switch (method?.toLowerCase()) {
         case 'get':
-            response.write('Hola Mundo, soy Alejandro');
+            response.writeHead(200, { 'Content-type': 'text/html' });
+            response.write('<p>Hola Mundo, soy Alejandro</p>');
             response.end();
             break;
+        case 'post':
+        case 'patch':
+        case 'delete':
         default:
             response.statusCode = 405;
             response.statusMessage = 'Method not allowed';
@@ -33,6 +37,7 @@ server.on('listening', () => {
 
 server.on('error', (error) => {
     console.log(error);
+    exit(-1);
 });
 
 server.listen(port);
