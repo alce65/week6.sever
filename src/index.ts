@@ -1,18 +1,21 @@
 import http from 'http';
 import url from 'url';
 import * as dotenv from 'dotenv'; // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
-import { exit } from 'process';
+import { CustomError } from './interfaces/error';
 dotenv.config();
 
 const port = process.env.PORT || 3300;
 const server = http.createServer((request, response) => {
-    if (request.url === undefined) throw new Error('URL undefined');
+    if (request.url === undefined) {
+        server.emit('error', new Error('URL undefined'));
+        return;
+    }
     const parse = url.parse(request.url);
     const method = request.method;
 
-    console.log(parse);
-    console.log(method);
+    console.log(method, parse.href);
 
+    let err: CustomError;
     switch (method?.toLowerCase()) {
         case 'get':
             response.writeHead(200, { 'Content-type': 'text/html' });
@@ -23,21 +26,36 @@ const server = http.createServer((request, response) => {
         case 'patch':
         case 'delete':
         default:
-            response.statusCode = 405;
-            response.statusMessage = 'Method not allowed';
-            response.write('Método no disponible');
-            response.end();
+            err = {
+                ...new Error('Método no disponible'),
+                statusCode: 405,
+                statusMessage: 'Method not allowed',
+            };
+            server.emit('error', err, response);
             break;
     }
 });
 
 server.on('listening', () => {
-    console.log('Listen on port ', port);
+    const addr = server.address();
+    if (addr === null) return;
+    let bind: string;
+    if (typeof addr === 'string') {
+        bind = 'pipe ' + addr;
+    } else {
+        bind =
+            addr.address === '::'
+                ? `http://localhost:${addr?.port}`
+                : `port ${addr?.port}`;
+    }
+    console.log(`Listening on ${bind}`);
 });
 
-server.on('error', (error) => {
-    console.log(error);
-    exit(-1);
+server.on('error', (error: CustomError, response: http.ServerResponse) => {
+    response.statusCode = error.statusCode;
+    response.statusMessage = error.statusMessage;
+    response.write(error.message);
+    response.end();
 });
 
 server.listen(port);
